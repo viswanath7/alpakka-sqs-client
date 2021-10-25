@@ -1,0 +1,61 @@
+version: '3.7'
+services:
+  localstack:
+    image: localstack/localstack:0.12.19.1
+    ports:
+      - "4566:4566"
+      - "4571:4571"
+      - "127.0.0.1:8055:8080"
+    environment:
+      - SERVICES=sqs,dynamodb
+      - DEBUG=1
+      - DEFAULT_REGION=eu-west-1
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - HOSTNAME_EXTERNAL=localstack
+      - AWS_ACCESS_KEY_ID=local
+      - AWS_SECRET_ACCESS_KEY=local
+      - AWS_DEFAULT_REGION=eu-west-1
+    volumes:
+      - ./local/aws:/docker-entrypoint-initaws.d/
+      - /tmp/localstack:/tmp/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - "local"
+  dynamodb-admin:
+    image: aaronshaf/dynamodb-admin
+    ports:
+      - "8001:8001"
+    environment:
+      DYNAMO_ENDPOINT: "http://localstack:4566"
+      AWS_REGION: "eu-west-1"
+      AWS_ACCESS_KEY_ID: "local"
+      AWS_SECRET_ACCESS_KEY: "local"
+    depends_on:
+      - localstack
+    networks:
+      - "local"
+  portainer:
+    image: portainer/portainer-ce:2.9.0
+    command: -H unix:///var/run/docker.sock
+    deploy:
+      placement:
+        constraints: [ node.role == manager ]
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: "1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    ports:
+      - "9000:9000"
+    depends_on:
+      - localstack
+      - dynamodb-admin
+networks:
+  local:
+    driver: "bridge"
+volumes:
+  portainer_data:
